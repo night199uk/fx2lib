@@ -32,17 +32,19 @@
 
 volatile __bit got_sud;
 extern __code WORD debug_dscr;
+static __bit master_device;
 
-#define INPUTDATA IOB
-#define OUTPUTDATA IOD
+#define DATA_MISO	IOB
+#define DATA_MOSI	IOD
 
-#define DVALID_IN (1 << 0)
-#define DLAST_IN (1 << 2)
-#define DRDY_IN  (1 << 3)
+#define DVALID_MISO	(1 << 0)
+#define DLAST_MISO	(1 << 1)
+#define DRDY_MISO	(1 << 2)
+#define MASTER_SELECT	(1 << 3)
+#define DVALID_MOSI	(1 << 4)
+#define DLAST_MOSI	(1 << 5)
+#define DRDY_MOSI	(1 << 6)
 
-#define DVALID_OUT (1 << 4)
-#define DLAST_OUT (1 << 6)
-#define DRDY_OUT  (1 << 7)
 
 typedef enum {
 	TX_STATE_IDLE=0,
@@ -56,7 +58,7 @@ typedef enum {
 	RX_STATE_ACK,
 } rx_state_t;
 
-static void tx_state(void)
+static void tx_state_master(void)
 {
 	static int offset, last;
 	static tx_state_t state = TX_STATE_IDLE;
@@ -65,22 +67,22 @@ static void tx_state(void)
 		case TX_STATE_IDLE:
 			if (EP2468STAT & bmEP6FULL)
 				break;
-			IOA |= DRDY_OUT;
+			IOA |= DRDY_MOSI;
 
-			if(!(IOA & DVALID_IN))
+			if(!(IOA & DVALID_MISO))
 				break;
 			state = TX_STATE_DATA;
 			/* intentional fall through */
 
 		case TX_STATE_DATA:
-			last = IOA & DLAST_IN;
-			EP6FIFOBUF[offset] = INPUTDATA;
-			IOA &= ~DRDY_OUT;
+			last = IOA & DLAST_MISO;
+			EP6FIFOBUF[offset] = DATA_MISO;
+			IOA &= ~DRDY_MOSI;
 			state = TX_STATE_ACK;
 			/* intentional fall through */
 
 		case TX_STATE_ACK:
-			if (IOA & DVALID_IN)
+			if (IOA & DVALID_MISO)
 				break;
 			offset++;
 			if (last) {
@@ -98,7 +100,7 @@ static void tx_state(void)
 	}
 }
 
-static void rx_state(void)
+static void rx_state_master(void)
 {
 	static int offset, remaining;
 	static rx_state_t state = RX_STATE_IDLE;
@@ -114,26 +116,117 @@ static void rx_state(void)
 			break;
 
 		case RX_STATE_DATA:
-			if (!(IOA & DRDY_IN))
+			if (!(IOA & DRDY_MISO))
 				break;
 
-			OUTPUTDATA = EP2FIFOBUF[offset++];
+			DATA_MOSI = EP2FIFOBUF[offset++];
 
 			if (--remaining)
-				IOA &= ~DLAST_OUT;
+				IOA &= ~DLAST_MOSI;
 			else
-				IOA |= DLAST_OUT;
+				IOA |= DLAST_MOSI;
 
-			IOA |= DVALID_OUT;
+			IOA |= DVALID_MOSI;
 
 			state = RX_STATE_ACK;
 			break;
 
 		case RX_STATE_ACK:
-			if (IOA & DRDY_IN)
+			if (IOA & DRDY_MISO)
 				break;
 
-			IOA &= ~DVALID_OUT;
+			IOA &= ~DVALID_MOSI;
+
+			if (remaining) {
+				state = RX_STATE_DATA;
+			} else {
+				state = RX_STATE_IDLE;
+				REARM();
+			}
+			break;
+		default:
+			state = RX_STATE_IDLE;
+	}
+}
+
+static void tx_state_slave(void)
+{
+	static int offset, last;
+	static tx_state_t state = TX_STATE_IDLE;
+
+	switch(state) {
+		case TX_STATE_IDLE:
+			if (EP2468STAT & bmEP6FULL)
+				break;
+			IOA |= DRDY_MISO;
+
+			if(!(IOA & DVALID_MOSI))
+				break;
+			state = TX_STATE_DATA;
+			/* intentional fall through */
+
+		case TX_STATE_DATA:
+			last = IOA & DLAST_MOSI;
+			EP6FIFOBUF[offset] = DATA_MOSI;
+			IOA &= ~DRDY_MISO;
+			state = TX_STATE_ACK;
+			/* intentional fall through */
+
+		case TX_STATE_ACK:
+			if (IOA & DVALID_MOSI)
+				break;
+			offset++;
+			if (last) {
+				EP6BCH = MSB(offset);
+				SYNCDELAY();
+				EP6BCL = LSB(offset);
+				state = TX_STATE_IDLE;
+				offset = 0;
+				break;
+			}
+			state = TX_STATE_IDLE;;
+			break;
+		default:
+			state = TX_STATE_IDLE;
+	}
+}
+
+static void rx_state_slave(void)
+{
+	static int offset, remaining;
+	static rx_state_t state = RX_STATE_IDLE;
+
+	switch(state) {
+		case RX_STATE_IDLE:
+			if (EP2468STAT & bmEP2EMPTY)
+				break;
+
+			state = RX_STATE_DATA;
+			offset = 0;
+			remaining = MAKEWORD(EP2BCH, EP2BCL);
+			break;
+
+		case RX_STATE_DATA:
+			if (!(IOA & DRDY_MOSI))
+				break;
+
+			DATA_MISO = EP2FIFOBUF[offset++];
+
+			if (--remaining)
+				IOA &= ~DLAST_MISO;
+			else
+				IOA |= DLAST_MISO;
+
+			IOA |= DVALID_MISO;
+
+			state = RX_STATE_ACK;
+			break;
+
+		case RX_STATE_ACK:
+			if (IOA & DRDY_MOSI)
+				break;
+
+			IOA &= ~DVALID_MISO;
 
 			if (remaining) {
 				state = RX_STATE_DATA;
@@ -149,13 +242,19 @@ static void rx_state(void)
 
 static void mainloop(void)
 {
+	__bit master = master_device;
 	while(TRUE) {
 		if (got_sud) {
 			handle_setupdata();
 			got_sud=FALSE;
 		}
-		tx_state();
-		rx_state();
+		if (master) {
+			tx_state_master();
+			rx_state_master();
+		} else {
+			tx_state_slave();
+			rx_state_slave();
+		}
 	}
 }
 
@@ -210,14 +309,22 @@ static void port_setup(void)
 	IOB = 0xff;
 	IOD = 0xff;
 
-	OEA = 0xf0;	/* [3:0] INPUT, [7:4] OUTPUT */
-	OEB = 0;	/* INPUTDATA */
-	OED = 0xff;	/* OUTPUTDATA */
+	if (master_device) {
+		OEA = (DVALID_MOSI | DLAST_MOSI | DRDY_MOSI);
+		OEB = 0;	/* DATA_MISO */
+		OED = 0xff;	/* DATA_MOSI */
+	} else {
+		OEA = (DVALID_MISO | DLAST_MISO | DRDY_MISO);
+		OEB = 0xff;	/* DATA_MISO */
+		OED = 0;	/* DATA_MOSI */
+	}
 }
 
 void main()
 {
 	REVCTL=0; // not using advanced endpoint controls
+
+	master_device = (IOA & MASTER_SELECT);
 
 	port_setup();
 
