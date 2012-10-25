@@ -372,7 +372,7 @@ BOOL handle_get_interface(BYTE ifc, BYTE *alt_ifc)
 
 BOOL handle_set_interface(BYTE ifc, BYTE alt_ifc)
 {
-	if (ifc==0&&alt_ifc==0) {
+	if (ifc==1&&alt_ifc==0) {
 		// SEE TRM 2.3.7
 		// reset toggles
 		RESETTOGGLE(0x02);

@@ -53,11 +53,11 @@ int main(int argc __attribute__((unused)),
 		return 1;
 	}
 
-	libusb_claim_interface(hndl[0],0);
-	libusb_claim_interface(hndl[1],0);
+	libusb_claim_interface(hndl[0],1);
+	libusb_claim_interface(hndl[1],1);
 
-	libusb_set_interface_alt_setting(hndl[0], 0, 0);
-	libusb_set_interface_alt_setting(hndl[1], 0, 0);
+	libusb_set_interface_alt_setting(hndl[0], 1, 0);
+	libusb_set_interface_alt_setting(hndl[1], 1, 0);
 
 	for (i = 0; i < (int)sizeof(buf); i++)
 		buf[i] = i;
@@ -106,5 +106,6 @@ int main(int argc __attribute__((unused)),
 
 	libusb_free_device_list(devlist, 1);
 	libusb_close(hndl[0]);
+	libusb_close(hndl[1]);
 	return 0;
 }
