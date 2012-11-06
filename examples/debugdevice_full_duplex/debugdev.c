@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012 Sven Schnelle <svens@stackframe.org>
+ * Copyright (C) 2012 Kyösti Mälkki <kyosti.malkki@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,226 +20,133 @@
 
 #include <fx2regs.h>
 #include <fx2macros.h>
-#include <serial.h>
 #include <delay.h>
 #include <autovector.h>
-#include <lights.h>
+#include <gpif.h>
 #include <setupdat.h>
 #include <eputils.h>
 
 #define SYNCDELAY SYNCDELAY4
-#define REARMVAL 0x80
-#define REARM() EP2BCL=REARMVAL
 
 volatile __bit got_sud;
 extern __code WORD debug_dscr;
 static __bit master_device;
 
-#define DATA_MISO	IOB
-#define DATA_MOSI	IOD
-
-#define DVALID_MISO	(1 << 0)
-#define DLAST_MISO	(1 << 1)
-#define DRDY_MISO	(1 << 2)
+/* PORTA.3 */
+#define PA_nSLOE 	(1 << 2)
 #define MASTER_SELECT	(1 << 3)
-#define DVALID_MOSI	(1 << 4)
-#define DLAST_MOSI	(1 << 5)
-#define DRDY_MOSI	(1 << 6)
+#define PA_FIFOMASK	(3 << 4)
+#define 	PA_FIFO_EP2	(0 << 4)
+#define 	PA_FIFO_EP4	(1 << 4)
+#define 	PA_FIFO_EP6	(2 << 4)
+#define		PA_FIFO_EP8	(3 << 4)
+#define PA_nPKTEND	(1 << 6)
 
+/* RDY0/1 inputs */
+#define RDY_nEF	(1<<0)
+#define RDY_nFF	(1<<1)
 
-typedef enum {
-	TX_STATE_IDLE=0,
-	TX_STATE_DATA,
-	TX_STATE_ACK,
-} tx_state_t;
+static const unsigned char __idledata[8] = {
+/* GPIFREADYCFG */	0x0,
+/* GPIFCTLCFG */	0x0,
+/* GPIFIDLECS */	0x0,
+/* GPIFIDLECTL */	0xff,
+/* unused */		0x0,
+/* GPIFWFSELECT */	0xe4,
+/* GPIFREADYSTAT */	0x0
+};
 
-typedef enum {
-	RX_STATE_IDLE=0,
-	RX_STATE_DATA,
-	RX_STATE_ACK,
-} rx_state_t;
+static const unsigned char __waveforms[4][4][8] = {
+	{
+	/* length / branch */	{0x0f, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00},
+	/* opcode */		{0x01, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00},
+	/* output */		{0x07, 0x06, 0x07, 0x07, 0x00, 0x00, 0x00, 0x00},
+	/* logic fn */		{0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	},
+	{
+	/* length / branch */	{0x01, 0x03, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00},
+	/* opcode */		{0x02, 0x02, 0x02, 0x05, 0x00, 0x00, 0x00, 0x00},
+	/* output */		{0x07, 0x05, 0x07, 0x07, 0x00, 0x00, 0x00, 0x00},
+	/* logic fn */		{0x00, 0x00, 0x00, 0xf1, 0x00, 0x00, 0x00, 0x00},
+	},
+	{{{0}}},
+	{
+	/* length / branch */	{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00},
+	/* opcode */		{0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	/* output */		{0x07, 0x05, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07},
+	/* logic fn */		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	},
+};
+
+static unsigned char * idledata = &__idledata[0];
+static unsigned char * waveforms = &__waveforms[0][0][0];
 
 static void tx_state_master(void)
 {
-	static int offset, last;
-	static tx_state_t state = TX_STATE_IDLE;
+	if (EP2468STAT & bmEP6FULL)
+		return;
 
-	switch(state) {
-		case TX_STATE_IDLE:
-			if (EP2468STAT & bmEP6FULL)
-				break;
-			IOA |= DRDY_MOSI;
+	do {} while (!GPIFDONE);
 
-			if(!(IOA & DVALID_MISO))
-				break;
-			state = TX_STATE_DATA;
-			/* intentional fall through */
+	IOA = (IOA & ~PA_FIFOMASK) | PA_FIFO_EP2;
+	SYNCDELAY;
+	if (!(GPIFREADYSTAT & RDY_nEF))
+		return;
 
-		case TX_STATE_DATA:
-			last = IOA & DLAST_MISO;
-			EP6FIFOBUF[offset] = DATA_MISO;
-			IOA &= ~DRDY_MOSI;
-			state = TX_STATE_ACK;
-			/* intentional fall through */
+	/* As both SLOE and SLRD signals gate FD[0:15] drivers in slave
+	   FIFO asynchronous mode, it should be safe to have SLOE active
+	   all the time.
+	  */
+	IOA &= ~PA_nSLOE;
 
-		case TX_STATE_ACK:
-			if (IOA & DVALID_MISO)
-				break;
-			offset++;
-			if (last) {
-				EP6BCH = MSB(offset);
-				SYNCDELAY;
-				EP6BCL = LSB(offset);
-				state = TX_STATE_IDLE;
-				offset = 0;
-				break;
-			}
-			state = TX_STATE_IDLE;;
-			break;
-		default:
-			state = TX_STATE_IDLE;
-	}
+	gpif_set_tc16(1);
+	gpif_fifo_read(GPIF_EP6);
+
+	do {} while (!GPIFDONE);
+	IOA |= PA_nSLOE;
+
+	/* Payload to send to USB can be modified in EP6FIFOBUF[] and
+	   it has length of EP6FIFOBCH/L.
+	 */
+
+	INPKTEND = 0x06;
+	SYNCDELAY;
 }
 
 static void rx_state_master(void)
 {
-	static int offset, remaining;
-	static rx_state_t state = RX_STATE_IDLE;
+	if (EP2468STAT & bmEP2EMPTY)
+		return;
 
-	switch(state) {
-		case RX_STATE_IDLE:
-			if (EP2468STAT & bmEP2EMPTY)
-				break;
+	do {} while (!GPIFDONE);
 
-			state = RX_STATE_DATA;
-			offset = 0;
-			remaining = MAKEWORD(EP2BCH, EP2BCL);
-			break;
+	IOA = (IOA & ~PA_FIFOMASK) | PA_FIFO_EP6;
+	SYNCDELAY;
+	if (!(GPIFREADYSTAT & RDY_nFF))
+		return;
 
-		case RX_STATE_DATA:
-			if (!(IOA & DRDY_MISO))
-				break;
+	/* As both SLOE and SLRD signals gate FD[0:15] drivers in slave
+	   FIFO asynchronous mode, it should be safe to have SLOE active
+	   all the time.
+	  */
+	IOA |= PA_nSLOE;
 
-			DATA_MOSI = EP2FIFOBUF[offset++];
+	/* Payload received from USB can be modified in EP2BUF[] and
+	   has length of EP2BCH/L.
+	 */
 
-			if (--remaining)
-				IOA &= ~DLAST_MOSI;
-			else
-				IOA |= DLAST_MOSI;
+	OUTPKTEND = 0x02;
+	SYNCDELAY;
+	gpif_set_tc16(1);
+	gpif_fifo_write(GPIF_EP2);
 
-			IOA |= DVALID_MOSI;
+	do {} while (!GPIFDONE);
 
-			state = RX_STATE_ACK;
-			break;
-
-		case RX_STATE_ACK:
-			if (IOA & DRDY_MISO)
-				break;
-
-			IOA &= ~DVALID_MOSI;
-
-			if (remaining) {
-				state = RX_STATE_DATA;
-			} else {
-				state = RX_STATE_IDLE;
-				REARM();
-			}
-			break;
-		default:
-			state = RX_STATE_IDLE;
-	}
+	/* No more data on master enpoint out, flush slave endpoint in. */
+	IOA &= ~PA_nPKTEND;
+	IOA |= PA_nPKTEND;
 }
 
-static void tx_state_slave(void)
-{
-	static int offset, last;
-	static tx_state_t state = TX_STATE_IDLE;
-
-	switch(state) {
-		case TX_STATE_IDLE:
-			if (EP2468STAT & bmEP6FULL)
-				break;
-			IOA |= DRDY_MISO;
-
-			if(!(IOA & DVALID_MOSI))
-				break;
-			state = TX_STATE_DATA;
-			/* intentional fall through */
-
-		case TX_STATE_DATA:
-			last = IOA & DLAST_MOSI;
-			EP6FIFOBUF[offset] = DATA_MOSI;
-			IOA &= ~DRDY_MISO;
-			state = TX_STATE_ACK;
-			/* intentional fall through */
-
-		case TX_STATE_ACK:
-			if (IOA & DVALID_MOSI)
-				break;
-			offset++;
-			if (last) {
-				EP6BCH = MSB(offset);
-				SYNCDELAY();
-				EP6BCL = LSB(offset);
-				state = TX_STATE_IDLE;
-				offset = 0;
-				break;
-			}
-			state = TX_STATE_IDLE;;
-			break;
-		default:
-			state = TX_STATE_IDLE;
-	}
-}
-
-static void rx_state_slave(void)
-{
-	static int offset, remaining;
-	static rx_state_t state = RX_STATE_IDLE;
-
-	switch(state) {
-		case RX_STATE_IDLE:
-			if (EP2468STAT & bmEP2EMPTY)
-				break;
-
-			state = RX_STATE_DATA;
-			offset = 0;
-			remaining = MAKEWORD(EP2BCH, EP2BCL);
-			break;
-
-		case RX_STATE_DATA:
-			if (!(IOA & DRDY_MOSI))
-				break;
-
-			DATA_MISO = EP2FIFOBUF[offset++];
-
-			if (--remaining)
-				IOA &= ~DLAST_MISO;
-			else
-				IOA |= DLAST_MISO;
-
-			IOA |= DVALID_MISO;
-
-			state = RX_STATE_ACK;
-			break;
-
-		case RX_STATE_ACK:
-			if (IOA & DRDY_MOSI)
-				break;
-
-			IOA &= ~DVALID_MISO;
-
-			if (remaining) {
-				state = RX_STATE_DATA;
-			} else {
-				state = RX_STATE_IDLE;
-				REARM();
-			}
-			break;
-		default:
-			state = RX_STATE_IDLE;
-	}
-}
 
 static void mainloop(void)
 {
@@ -251,9 +159,6 @@ static void mainloop(void)
 		if (master) {
 			tx_state_master();
 			rx_state_master();
-		} else {
-			tx_state_slave();
-			rx_state_slave();
 		}
 	}
 }
@@ -262,6 +167,11 @@ static void clock_setup(void)
 {
 	SETCPUFREQ(CLK_48M);
 	SETIF48MHZ();
+
+	if (master_device)
+		IFCONFIG |= bmIFCLKOE;
+	else
+		IFCONFIG &= ~bmIFCLKSRC;
 }
 
 static void usb_setup(void)
@@ -278,11 +188,11 @@ static void usb_setup(void)
 	EP1INCFG = bmVALID | (3 << 4);
 	SYNCDELAY;
 
-	/* BULK IN endpoint EP2 */
+	/* BULK OUT endpoint EP2 */
 	EP2CFG = 0xA2; // 10100010
 	SYNCDELAY;
 
-	/* BULK OUT endpoint EP6 */
+	/* BULK IN endpoint EP6 */
 	EP6CFG = 0xE2;
 	SYNCDELAY;
 
@@ -297,34 +207,83 @@ static void usb_setup(void)
 	EP8CFG &= ~bmVALID;
 	SYNCDELAY;
 
-	// arm ep2
-	EP2BCL = 0x80; // write once
+	/* BULK OUT endpoint EP2 */
+	EP2FIFOCFG = 0;
 	SYNCDELAY;
-	EP2BCL = 0x80; // do it again
+
+	RESETFIFOS();
+
+	// arm ep2
+	OUTPKTEND = 0x82;
+	SYNCDELAY;
+	OUTPKTEND = 0x82;
+	SYNCDELAY;
+
+	if (master_device) {
+		EP2GPIFFLGSEL = 0x01; /* EF */
+		SYNCDELAY;
+
+		/* BULK IN endpoint EP6 */
+		EP6FIFOCFG = 0;
+		SYNCDELAY;
+		EP6GPIFFLGSEL = 0x02; /* FF */
+		SYNCDELAY;
+
+	} else {
+		EP2FIFOCFG = bmAUTOOUT;
+		SYNCDELAY;
+
+		/* BULK IN endpoint EP6 */
+		EP6FIFOCFG = bmAUTOIN;
+		SYNCDELAY;
+
+		/* 512 bytes */
+		EP6AUTOINLENH = 0x2;
+		SYNCDELAY;
+		EP6AUTOINLENL = 0x0;
+		SYNCDELAY;
+	}
 }
 
 static void port_setup(void)
 {
-	IOA = 0;
+	if (master_device) {
+		/* GPIF master */
+		gpif_init(waveforms, idledata);
+		IFCONFIG = (IFCONFIG & ~0x03) | 0x02;
+		PORTACFG = 0x0;
+		IOA = (PA_nPKTEND | PA_nSLOE);
+		OEA = (PA_nPKTEND | PA_nSLOE | PA_FIFOMASK);
+		FIFOPINPOLAR = 0x0;
+	} else {
+		/* SLAVE FIFO in asynchronous mode */
+		IFCONFIG |= bmASYNC | 0x03;
+		PORTACFG = 0x0;
+		IOA = 0x0;
+		OEA = 0x0;
+		FIFOPINPOLAR = 0x0;
+		PINFLAGSAB = 0x0;
+		PINFLAGSCD = 0x0;
+	}
+
+	/* Output drive enable is under GPIF or #SLOE control. */
+	OEB = 0x00;
+	OED = 0x00;
 	IOB = 0xff;
 	IOD = 0xff;
-
-	if (master_device) {
-		OEA = (DVALID_MOSI | DLAST_MOSI | DRDY_MOSI);
-		OEB = 0;	/* DATA_MISO */
-		OED = 0xff;	/* DATA_MOSI */
-	} else {
-		OEA = (DVALID_MISO | DLAST_MISO | DRDY_MISO);
-		OEB = 0xff;	/* DATA_MISO */
-		OED = 0;	/* DATA_MOSI */
-	}
 }
 
 void main()
 {
-	REVCTL=0; // not using advanced endpoint controls
+	REVCTL=0x03;
+	SYNCDELAY;
 
+	IOA = 0;
 	master_device = (IOA & MASTER_SELECT);
+
+	/* Delay slave so master has time to drive IFCLK and IOA */
+	if (! master_device)
+		delay(500);
 
 	port_setup();
 
@@ -372,18 +331,26 @@ BOOL handle_get_interface(BYTE ifc, BYTE *alt_ifc)
 
 BOOL handle_set_interface(BYTE ifc, BYTE alt_ifc)
 {
-	if (ifc==1&&alt_ifc==0) {
+	if (ifc==1 && alt_ifc==0) {
 		// SEE TRM 2.3.7
 		// reset toggles
 		RESETTOGGLE(0x02);
 		RESETTOGGLE(0x86);
+
 		// restore endpoints to default condition
-		RESETFIFO(0x02);
-		EP2BCL=0x80;
+		if (!master_device) {
+			EP2FIFOCFG = 0;
+			SYNCDELAY;
+		}
+		RESETFIFOS();
+		OUTPKTEND = 0x82;
 		SYNCDELAY;
-		EP2BCL=0X80;
+		OUTPKTEND = 0x82;
 		SYNCDELAY;
-		RESETFIFO(0x86);
+		if (!master_device) {
+			EP2FIFOCFG = bmAUTOOUT;
+			SYNCDELAY;
+		}
 		return TRUE;
 	} else
 		return FALSE;
