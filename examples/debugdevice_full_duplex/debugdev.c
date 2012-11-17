@@ -33,9 +33,9 @@ extern __code WORD debug_dscr;
 static __bit master_device;
 
 /* PORTA.3 */
-#define PA_nSLOE 	(1 << 2)
-#define MASTER_SELECT	(1 << 3)
-#define PA_FIFOMASK	(3 << 4)
+#define PA_nSLOE 		(1 << 2)
+#define PA_MASTER_SELECT	(1 << 3)
+#define PA_FIFOMASK		(3 << 4)
 #define 	PA_FIFO_EP2	(0 << 4)
 #define 	PA_FIFO_EP4	(1 << 4)
 #define 	PA_FIFO_EP6	(2 << 4)
@@ -253,7 +253,7 @@ static void port_setup(void)
 		IFCONFIG = (IFCONFIG & ~0x03) | 0x02;
 		PORTACFG = 0x0;
 		IOA = (PA_nPKTEND | PA_nSLOE);
-		OEA = (PA_nPKTEND | PA_nSLOE | PA_FIFOMASK);
+		OEA = (PA_nPKTEND | PA_nSLOE | PA_FIFOMASK | PA_MASTER_SELECT);
 		FIFOPINPOLAR = 0x0;
 	} else {
 		/* SLAVE FIFO in asynchronous mode */
@@ -275,11 +275,27 @@ static void port_setup(void)
 
 void main()
 {
+	__bit last_msel = 0;
+	__bit this_msel = 0;
+	int i = 0;
 	REVCTL=0x03;
 	SYNCDELAY;
 
-	IOA = 0;
-	master_device = (IOA & MASTER_SELECT);
+	OEA = 0;
+	master_device = FALSE;
+	while (i<5) {
+		this_msel = !!(IOA & PA_MASTER_SELECT);
+		if (this_msel == last_msel)
+			i++;
+		else
+			i=0;
+		last_msel = this_msel;
+	}
+	if (last_msel) {
+		IOA &= ~PA_MASTER_SELECT;
+		OEA |= PA_MASTER_SELECT;
+		master_device = TRUE;
+	}
 
 	/* Delay slave so master has time to drive IFCLK and IOA */
 	if (! master_device)
