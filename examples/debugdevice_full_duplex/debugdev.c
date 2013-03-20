@@ -222,27 +222,22 @@ static void usb_setup(void)
 	if (master_device) {
 		EP2GPIFFLGSEL = 0x01; /* EF */
 		SYNCDELAY;
-
-		/* BULK IN endpoint EP6 */
-		EP6FIFOCFG = 0;
-		SYNCDELAY;
 		EP6GPIFFLGSEL = 0x02; /* FF */
 		SYNCDELAY;
-
 	} else {
 		EP2FIFOCFG = bmAUTOOUT;
 		SYNCDELAY;
-
-		/* BULK IN endpoint EP6 */
-		EP6FIFOCFG = bmAUTOIN;
-		SYNCDELAY;
-
-		/* 512 bytes */
-		EP6AUTOINLENH = 0x2;
-		SYNCDELAY;
-		EP6AUTOINLENL = 0x0;
-		SYNCDELAY;
 	}
+
+	/* BULK IN endpoint EP6 */
+	EP6FIFOCFG = bmAUTOIN;
+	SYNCDELAY;
+
+	/* 512 bytes */
+	EP6AUTOINLENH = 0x2;
+	SYNCDELAY;
+	EP6AUTOINLENL = 0x0;
+	SYNCDELAY;
 }
 
 static void port_setup(void)
