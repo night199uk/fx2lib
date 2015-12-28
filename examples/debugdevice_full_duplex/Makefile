@@ -1,19 +1,20 @@
 FX2LIBDIR=../../
-BASENAME = debugdev
-SOURCES=debugdev.c
-A51_SOURCES=dscr.a51
 PID=0x1004
-include $(FX2LIBDIR)lib/fx2.mk
-
 CXX=g++
 HOSTCC=gcc
 CXXFLAGS=-Wall -Wextra -O2 -ggdb
 HOSTCFLAGS=-Wall -Wextra -O2 -ggdb
+SUBDIRS=master slave
 
-all: test terminal build/debugdev.ihx
+all: test terminal subdirs
+include $(FX2LIBDIR)lib/fx2.mk
 
-download: build/$(BASENAME).ihx
-	  ./download.sh $<
+subdirs: $(SUBDIRS)
+
+.PHONY: all subdirs $(SUBDIRS)
+
+$(SUBDIRS):
+	$(MAKE) -C $@
 
 terminal:	terminal.c
 	$(HOSTCC) $(HOSTCFLAGS) -o $@ $< -lusb-1.0
