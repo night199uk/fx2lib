@@ -46,6 +46,7 @@ INT2JT?=-Wl"-b INT2JT=0x3f00"
 CODE_SIZE?=--code-size 0x3c00
 XRAM_SIZE?=--xram-size 0x0200
 XRAM_LOC?=--xram-loc 0x3c00
+
 BUILDDIR?=build
 
 FX2LIBDIR?=$(dir $(lastword $(MAKEFILE_LIST)))../

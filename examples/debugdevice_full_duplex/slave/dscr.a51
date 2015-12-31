@@ -57,7 +57,7 @@ _dev_dscr:
 	.db	0x00					  ; protocol (vendor specific)
 	.db	0x40						  ; packet size (ep0)
 	.dw	0xb404					  ; vendor id
-	.dw	0x1386					  ; product id
+	.dw	0x2086					  ; product id
 	.dw	0x0100					  ; version id
 	.db	0x01					  ; manufacturure str idx
 	.db	0x02				          ; product str idx
@@ -325,13 +325,13 @@ _string2:
     .db 0
     .ascii ' '
     .db 0
-    .ascii 'c'
+    .ascii 'S'
+    .db 0
+    .ascii 'l'
     .db 0
     .ascii 'a'
     .db 0
-    .ascii 'b'
-    .db 0
-    .ascii 'l'
+    .ascii 'v'
     .db 0
     .ascii 'e'
     .db 0

@@ -19,12 +19,17 @@ Memory
    - upper 128=stack (or whatever but only indirect addressing)
    - sfs occupy upper 128 space only direct addressing
 
- * external
+ * external for FX2
+  - 8k on chip 0-0x1fff
+  - 512 bytes on chip scratch ram 0xe000 - 0xe1ff (data memory only)
+  - epbuffers and control at 0xe200-0xffff (data memory only)
+
+ * external for FX2LP
   - 16k on chip 0-0x3fff
   - 512 bytes on chip scratch ram 0xe000 - 0xe1ff (data memory only)
   - epbuffers and control at 0xe200-0xffff (data memory only)
   
-   Only the on chip 16k and 512 bytes can be uploaded w/ eeprom or downloaded to host with SETUPPTR
+   Only the on chip 8/16k and 512 bytes can be uploaded w/ eeprom or downloaded to host with SETUPPTR
    Might be possible to load the descriptors to the scratch ram instead of code ram area?
 
 sdcc data types
