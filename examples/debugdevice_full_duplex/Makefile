@@ -6,8 +6,7 @@ CXXFLAGS=-Wall -Wextra -O2 -ggdb
 HOSTCFLAGS=-Wall -Wextra -O2 -ggdb
 SUBDIRS=master slave
 
-all: test terminal subdirs
-include $(FX2LIBDIR)lib/fx2.mk
+all: test subdirs
 
 subdirs: $(SUBDIRS)
 
