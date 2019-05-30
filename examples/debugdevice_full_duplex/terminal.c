@@ -69,7 +69,7 @@ static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 		ret = libusb_bulk_transfer(hndl, 0x86, (unsigned char*)buf ,sizeof(buf), &len, sizeof(buf));
 
 		if (ret == -4) {
-			fprintf(stderr, "device disappeared\n");
+			fprintf(stderr, "\nDevice disappeared - will try to reconnect...\n");
 			return -1;
 		}
 
@@ -123,18 +123,22 @@ int main(int argc __attribute__((unused)),
 
 	libusb_init(&ctx);
 
+    printf("Waiting for EHCI Debug Master device...\n");
+
 restart:
-	hndl = libusb_open_device_with_vid_pid(ctx, 0x4b4, 0x8613);
+	hndl = libusb_open_device_with_vid_pid(ctx, 0x4b4, 0x8619);
 	if (!hndl) {
-//		fprintf(stderr, "failed to open device\n");
+		//fprintf(stderr, "failed to open device\n");
 		sleep(1);
 		goto restart;
 	}
 
-	libusb_claim_interface(hndl, 0);
-	libusb_set_interface_alt_setting(hndl, 0, 0);
+    libusb_detach_kernel_driver(hndl, 1);
+	libusb_claim_interface(hndl, 1);
 
-	printf("Device opened\n");
+	libusb_set_interface_alt_setting(hndl, 1, 0);
+
+	printf("EHCI Debug Master device opened.\n");
 
 	outfile = fopen("debuglog.txt", "w+");
 	if (!outfile) {
