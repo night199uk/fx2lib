@@ -25,6 +25,7 @@
 #include <gpif.h>
 #include <setupdat.h>
 #include <eputils.h>
+#include <i2c.h>
 
 #define SYNCDELAY SYNCDELAY4
 
@@ -42,6 +43,11 @@ extern __code WORD debug_dscr;
 
 #define EP2EMPTY 0x02
 #define EP6FULL  0x01
+
+#define I2CDEBUG_ADDR   0x10
+void putchar(char c) {
+    i2c_write (I2CDEBUG_ADDR, 1, &c, 0, NULL);
+}
 
 static void mainloop(void)
 {
@@ -151,6 +157,7 @@ void main()
 
 	EA=1; // global __interrupt enable
 
+    printf("entering main loop...\n");
 	mainloop();
 }
 
@@ -159,6 +166,9 @@ void main()
 BOOL handle_vendorcommand(BYTE cmd)
 {
 	__xdata BYTE* pep;
+
+	printf("handle_vendorcommand(0x%02x)\n", cmd);
+
 	switch ( cmd ) {
 	case 6:
 		return TRUE;
@@ -179,6 +189,8 @@ BOOL handle_vendorcommand(BYTE cmd)
 // this firmware only supports 0,0
 BOOL handle_get_interface(BYTE ifc, BYTE *alt_ifc)
 {
+	printf("handle_get_interface(%d,...)\n", ifc);
+
 	if (ifc)
 		return FALSE;
 	*alt_ifc=0;
@@ -187,6 +199,8 @@ BOOL handle_get_interface(BYTE ifc, BYTE *alt_ifc)
 
 BOOL handle_set_interface(BYTE ifc, BYTE alt_ifc)
 {
+	printf("handle_set_interface(%d, %d)\n", ifc, alt_ifc);
+
 	if (ifc==1 && alt_ifc==0) {
 		// SEE TRM 2.3.7
 		// reset toggles
@@ -208,11 +222,14 @@ BOOL handle_set_interface(BYTE ifc, BYTE alt_ifc)
 // get/set configuration
 BYTE handle_get_configuration()
 {
+	printf("handle_get_configuration()\n");
 	return 1;
 }
 
 BOOL handle_get_descriptor(BYTE desc)
 {
+	printf("handle_get_descriptor(0x%02x)\n", desc);
+
 	if (desc != DSCR_DEBUG_TYPE)
 		return FALSE;
 
@@ -223,6 +240,8 @@ BOOL handle_get_descriptor(BYTE desc)
 
 BOOL handle_set_configuration(BYTE cfg)
 {
+	printf("handle_set_configuration(%d)\n", cfg);
+
     EP6AUTOINLENH = 0x00; SYNCDELAY;
     EP6AUTOINLENL = 0x08; SYNCDELAY;
 	return cfg==1 ? TRUE : FALSE; // we only handle cfg 1
@@ -252,3 +271,4 @@ void hispeed_isr() __interrupt HISPEED_ISR
 	handle_hispeed(TRUE);
 	CLEAR_HISPEED();
 }
+
