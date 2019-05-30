@@ -226,15 +226,23 @@ BYTE handle_get_configuration()
 	return 1;
 }
 
-BOOL handle_get_descriptor(BYTE desc)
+/**
+ * Handle DEBUG descriptor reporting here.
+ * GET_DESCRIPTOR calls for other descriptor types are passed on
+ * to _handle_get_descriptor() in setupdat.
+ */
+BOOL handle_get_descriptor()
 {
-	printf("handle_get_descriptor(0x%02x)\n", desc);
+    BYTE desc_type = SETUPDAT[3]; // wValueH [TRM 2.3.4.1]
 
-	if (desc != DSCR_DEBUG_TYPE)
+	printf("handle_get_descriptor(DT=%d)\n", desc_type);
+	if (desc_type != DSCR_DEBUG_TYPE)
 		return FALSE;
 
+    // prepare to send the device debug descriptor [TRM 2.3.4]
 	SUDPTRH = MSB((WORD)&debug_dscr);
-	SUDPTRL = LSB((WORD)&debug_dscr);
+	SUDPTRL = LSB((WORD)&debug_dscr); // load SUDPTRL last to initiate transfer
+
 	return TRUE;
 }
 
