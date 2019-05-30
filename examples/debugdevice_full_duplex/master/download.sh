@@ -9,7 +9,7 @@ fi
 
 for dev in $DEVS;do
     echo "Downloading $1 to $dev"
-    sudo /sbin/fxload -v -D /dev/bus/usb/$dev -t fx2lp -I $1 -c 0x01 -s /home/administrator/Vend_Ax.hex
+    sudo /sbin/fxload -v -D /dev/bus/usb/$dev -t fx2lp -I $1 -c 0x01 -s ../vend_ax.hex
 done
 
 exit 0
