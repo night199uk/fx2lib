@@ -76,7 +76,7 @@ void main()
     CPUCS = 0x12;
 
     // Bit7: 0 = External, 1 = Internal...1 - Internal
-    // Bit6: 0 = 30Mhz Clk, 1 = 48 Mhz Clk...1 - 48Mhz 
+    // Bit6: 0 = 30Mhz Clk, 1 = 48 Mhz Clk...1 - 48Mhz
     // Bit5: 0 = No ClkOut, 1 = ClkOut...0 - No ClkOut
     // Bit4: 0 = NormalPol, 1 = InvPol...0 = NormalPol
     // Bit3: 0 = Synchronous, 1 = Asynchronous...1 = Async
@@ -86,52 +86,52 @@ void main()
 
     // Bit0 = ENH_PKT - Enhanced Packet Handling.
     // Bit1 = DYN_OUT - Disable Auto-Arming at the 0-1 transition of AUTOOUT.
-	RENUMERATE_UNCOND();
+    RENUMERATE_UNCOND();
 
-	USE_USB_INTS();
-	ENABLE_SUDAV();
-	ENABLE_SOF();
-	ENABLE_HISPEED();
-	ENABLE_USBRESET();
+    USE_USB_INTS();
+    ENABLE_SUDAV();
+    ENABLE_SOF();
+    ENABLE_HISPEED();
+    ENABLE_USBRESET();
 
-	/* INT endpoint */
-	EP1INCFG = bmVALID | (3 << 4); SYNCDELAY;
+    /* INT endpoint */
+    EP1INCFG = bmVALID | (3 << 4); SYNCDELAY;
 
-	/* disable all other endpoints */
-	EP1OUTCFG &= ~bmVALID; SYNCDELAY;
+    /* disable all other endpoints */
+    EP1OUTCFG &= ~bmVALID; SYNCDELAY;
 
-	// Bit1:0 = BUF1:0 = 0, 0 = QUAD
-	// Bit1:0 = BUF1:0 = 0, 1 = INVALID
-	// Bit1:0 = BUF1:0 = 1, 0 = DOUBLE
-	// Bit1:0 = BUF1:0 = 1, 1 = TRIPLE
-	// Bit2 = 0
-	// Bit3 = SIZE, 0 = 512 bytes, 1 = 1024 bytes
-	// Bit5:4 = TYPE1:0 = 0, 0 = INVALID
-	// Bit5:4 = TYPE1:0 = 0, 1 = ISO
-	// Bit5:4 = TYPE1:0 = 1, 0 = BULK (def)
-	// Bit5:4 = TYPE1:0 = 1, 1 = INT
-	// Bit6 = DIR, 0 = OUT, 1 = IN
-	// Bit7 = VALID
+    // Bit1:0 = BUF1:0 = 0, 0 = QUAD
+    // Bit1:0 = BUF1:0 = 0, 1 = INVALID
+    // Bit1:0 = BUF1:0 = 1, 0 = DOUBLE
+    // Bit1:0 = BUF1:0 = 1, 1 = TRIPLE
+    // Bit2 = 0
+    // Bit3 = SIZE, 0 = 512 bytes, 1 = 1024 bytes
+    // Bit5:4 = TYPE1:0 = 0, 0 = INVALID
+    // Bit5:4 = TYPE1:0 = 0, 1 = ISO
+    // Bit5:4 = TYPE1:0 = 1, 0 = BULK (def)
+    // Bit5:4 = TYPE1:0 = 1, 1 = INT
+    // Bit6 = DIR, 0 = OUT, 1 = IN
+    // Bit7 = VALID
     // EP2: 10100000 - DIR=OUT, TYPE=BULK, SIZE=512, BUF=QUAD
-	EP2CFG  = 0xA0;     SYNCDELAY;
+    EP2CFG  = 0xA0;     SYNCDELAY;
     // EP6: 11100000 - DIR=IN, TYPE=BULK, SIZE=512, BUF=QUAD
-	EP6CFG  = 0xE0;     SYNCDELAY;
-	EP4CFG &= ~bmVALID; SYNCDELAY;
-	EP8CFG &= ~bmVALID; SYNCDELAY;
+    EP6CFG  = 0xE0;     SYNCDELAY;
+    EP4CFG &= ~bmVALID; SYNCDELAY;
+    EP8CFG &= ~bmVALID; SYNCDELAY;
 
-	RESETFIFOS();
+    RESETFIFOS();
 
-	/* BULK OUT endpoint EP2 */
-	// Bit0 = WORDWIDE
-	// Bit1 = 0
-	// Bit2 = ZEROLENIN
-	// Bit3 = AUTOIN
-	// Bit4 = AUTOOUT
-	// Bit5 = OEP2
-	// Bit6 = INFM2
-	// Bit7 = 0
     /* BULK OUT endpoint EP2 */
-	EP2FIFOCFG = 0;         SYNCDELAY;
+    // Bit0 = WORDWIDE
+    // Bit1 = 0
+    // Bit2 = ZEROLENIN
+    // Bit3 = AUTOIN
+    // Bit4 = AUTOOUT
+    // Bit5 = OEP2
+    // Bit6 = INFM2
+    // Bit7 = 0
+    /* BULK OUT endpoint EP2 */
+    EP2FIFOCFG = 0;         SYNCDELAY;
     EP2FIFOCFG = bmAUTOOUT; SYNCDELAY;
     EP6FIFOCFG = bmAUTOIN;  SYNCDELAY;
 
@@ -143,10 +143,10 @@ void main()
 
     // FLAGA = Indexed
     // FLAGB = EP6 FF/CTL1 (Master RDY0)
-	PINFLAGSAB = 0xE0; SYNCDELAY;
+    PINFLAGSAB = 0xE0; SYNCDELAY;
     // FLAGC = EP2 EF/CTL2 (Master RDY1)
     // FLAGD = Indexed
-	PINFLAGSCD = 0x08; SYNCDELAY;
+    PINFLAGSCD = 0x08; SYNCDELAY;
 
     FIFOPINPOLAR = 0x00; SYNCDELAY;
 
@@ -156,16 +156,16 @@ void main()
     OEA = PA_LED1|PA_LED2; SYNCDELAY;
     IOA =         PA_LED2; SYNCDELAY;
 
-	delay(10);
+    delay(10);
 
-	EA=1; // global __interrupt enable
+    EA=1; // global __interrupt enable
 
     printf("entering main loop...\n");
-	while(TRUE) {
-	    if (got_sud) {
-		    handle_setupdata();
-		    got_sud=FALSE;
-	    }
+    while(TRUE) {
+        if (got_sud) {
+            handle_setupdata();
+            got_sud=FALSE;
+        }
         if (EP24FIFOFLGS & EP2EMPTY)
             IOA &= ~PA_LED2;
         else
@@ -175,7 +175,7 @@ void main()
             IOA &= ~PA_LED1;
         else
             IOA |= PA_LED1;
-	}
+    }
 }
 
 /**
@@ -187,15 +187,15 @@ BOOL handle_get_descriptor()
 {
     BYTE desc_type = SETUPDAT[3]; // wValueH [TRM 2.3.4.1]
 
-	printf("handle_get_descriptor(DT=%d)\n", desc_type);
-	if (desc_type != DSCR_DEBUG_TYPE)
-		return FALSE;
+    printf("handle_get_descriptor(DT=%d)\n", desc_type);
+    if (desc_type != DSCR_DEBUG_TYPE)
+        return FALSE;
 
     // prepare to send the device debug descriptor [TRM 2.3.4]
-	SUDPTRH = MSB((WORD)&debug_dscr);
-	SUDPTRL = LSB((WORD)&debug_dscr); // load SUDPTRL last to initiate transfer
+    SUDPTRH = MSB((WORD)&debug_dscr);
+    SUDPTRL = LSB((WORD)&debug_dscr); // load SUDPTRL last to initiate transfer
 
-	return TRUE;
+    return TRUE;
 }
 
 // this firmware does not implement any vendor commands
@@ -237,30 +237,30 @@ BOOL handle_set_configuration(BYTE cfg)
 
     EP6AUTOINLENH = 0x00; SYNCDELAY;
     EP6AUTOINLENL = 0x08; SYNCDELAY;
-	return (cfg == 1);
+    return (cfg == 1);
 }
 
 // copied usb jt routines from usbjt.h
 void sudav_isr() __interrupt SUDAV_ISR
 {
-	got_sud = TRUE;
-	CLEAR_SUDAV();
+    got_sud = TRUE;
+    CLEAR_SUDAV();
 }
 
 void sof_isr () __interrupt SOF_ISR __using 1
 {
-	CLEAR_SOF();
+    CLEAR_SOF();
 }
 
 void usbreset_isr() __interrupt USBRESET_ISR
 {
-	handle_hispeed(FALSE);
-	CLEAR_USBRESET();
+    handle_hispeed(FALSE);
+    CLEAR_USBRESET();
 }
 
 void hispeed_isr() __interrupt HISPEED_ISR
 {
-	handle_hispeed(TRUE);
-	CLEAR_HISPEED();
+    handle_hispeed(TRUE);
+    CLEAR_HISPEED();
 }
 
