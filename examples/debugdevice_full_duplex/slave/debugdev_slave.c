@@ -31,7 +31,10 @@
 // uncomment the next line to enable debugging via printf() via I2C.
 // this can be used to feed an I2C/UART converter e.g. based on an Arduino.
 // note: the default I2C target address is 0x10.
-#define DEBUG_DEBUGSLAVE
+// note: ONLY ENABLE THIS IF a consumer is present on the I2C bus, as the write
+//       will block until the data is read - i.e. it will hang the device and
+//       no output will be produced!
+//#define DEBUG_DEBUGSLAVE
 
 #ifdef DEBUG_DEBUGSLAVE
 #include <i2c.h>
