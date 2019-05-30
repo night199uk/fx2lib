@@ -16,7 +16,20 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  **/
+
+#define DEBUG_DEBUGSLAVE
+
+#ifdef DEBUG_DEBUGSLAVE
+#include <i2c.h>
 #include <stdio.h>
+
+#define I2CDEBUG_ADDR   0x10
+void putchar(char c) {
+    i2c_write (I2CDEBUG_ADDR, 1, &c, 0, NULL);
+}
+#else
+#define printf(...)
+#endif
 
 #include <fx2regs.h>
 #include <fx2macros.h>
@@ -43,11 +56,6 @@ extern __code WORD debug_dscr;
 
 #define EP2EMPTY 0x02
 #define EP6FULL  0x01
-
-#define I2CDEBUG_ADDR   0x10
-void putchar(char c) {
-    i2c_write (I2CDEBUG_ADDR, 1, &c, 0, NULL);
-}
 
 static void mainloop(void)
 {
