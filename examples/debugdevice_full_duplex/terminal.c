@@ -15,6 +15,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  **/
+#include <signal.h>
 #include <stdio.h>
 #include <assert.h>
 #include <libusb-1.0/libusb.h>
@@ -49,6 +50,14 @@ static int format_timediff(struct timespec *diff, char *out, int outlen)
 
 }
 
+volatile int exit_terminal = 0;
+void handle_sigint(int sig) {
+    (void)sig;
+
+    fflush(stdout);
+    exit_terminal = 1;
+}
+
 static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 {
 	unsigned char buf[512];
@@ -65,8 +74,8 @@ static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 	}
 
 	memcpy(&lastlinetp, &oldtp, sizeof(lastlinetp));
-	for(;;) {
-		ret = libusb_bulk_transfer(hndl, 0x86, (unsigned char*)buf ,sizeof(buf), &len, sizeof(buf));
+	while(!exit_terminal) {
+		ret = libusb_bulk_transfer(hndl, 0x86, buf, sizeof(buf), &len, sizeof(buf));
 
 		if (ret == -4) {
 			fprintf(stderr, "\nDevice disappeared - will try to reconnect...\n");
@@ -74,7 +83,7 @@ static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 		}
 
 		if(ret != -7 && ret != 0) {
-			printf("IN Transfer failed: %d\n", ret);
+			fprintf(stderr, "\nIN Transfer failed: %d\n", ret);
 			return -1;
 		}
 
@@ -83,7 +92,7 @@ static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 			if (print_time) {
 				print_time = 0;
 				if (clock_gettime(CLOCK_MONOTONIC, &tp) == -1) {
-					fprintf(stderr, "clock_gettime: %s\n", strerror(errno));
+					fprintf(stderr, "\nclock_gettime: %s\n", strerror(errno));
 					return -1;
 				}
 
@@ -104,31 +113,37 @@ static int terminal_loop(libusb_device_handle *hndl, FILE *outfile)
 				continue;
 
 			printf ("%c", c);
-
 			print_time = !!(c == '\n');
-
 
 			if (outfile)
 				fputc(buf[i], outfile);
 		}
 	}
+	return 0;
 }
 
 int main(int argc __attribute__((unused)),
 	char **argv __attribute__((unused)))
 {
-	FILE *outfile;
+	FILE *outfile = NULL;
 	libusb_context* ctx;
-	libusb_device_handle *hndl;
+	libusb_device_handle *hndl = NULL;
 
 	libusb_init(&ctx);
+
+    struct sigaction sa;
+    sa.sa_handler = handle_sigint;
+    sigaction(SIGINT, &sa, NULL);
 
     printf("Waiting for EHCI Debug Master device...\n");
 
 restart:
+    if (exit_terminal) {
+        goto out;
+    }
+
 	hndl = libusb_open_device_with_vid_pid(ctx, 0x4b4, 0x8619);
 	if (!hndl) {
-		//fprintf(stderr, "failed to open device\n");
 		sleep(1);
 		goto restart;
 	}
