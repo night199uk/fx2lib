@@ -15,7 +15,7 @@
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 ; this is a the default
-; full speed and high speed
+; high speed only
 ; descriptors found in the TRM
 ; change however you want but leave
 ; the descriptor pointers so the setupdat.c file works right
@@ -31,6 +31,7 @@ DSCR_STRING_TYPE=3
 DSCR_INTERFACE_TYPE=4
 DSCR_ENDPOINT_TYPE=5
 DSCR_DEVQUAL_TYPE=6
+DSCR_DEBUG_TYPE=10
 
 ; for the repeating interfaces
 DSCR_INTERFACE_LEN=9
@@ -49,111 +50,60 @@ ENDPOINT_TYPE_INT=3
     .area	DSCR_AREA	(CODE)
 
 _dev_dscr:
-	.db	dev_dscr_end-_dev_dscr    ; len
-	.db	DSCR_DEVICE_TYPE		  ; type
-	.dw	0x0002					  ; usb 2.0
-	.db	0x02  					  ; class (vendor specific)
-	.db	0x00					  ; subclass (vendor specific)
-	.db	0x00					  ; protocol (vendor specific)
-	.db	0x40						  ; packet size (ep0)
-	.dw	0xb404					  ; vendor id
-	.dw	0x2086					  ; product id
-	.dw	0x0100					  ; version id
-	.db	0x01					  ; manufacturure str idx
-	.db	0x02				          ; product str idx
-	.db	0x00				          ; serial str idx
-	.db	0x01					  ; n configurations
+	.db	dev_dscr_end-_dev_dscr			 ; dscr len
+	.db	DSCR_DEVICE_TYPE
+	.dw	0x0002							 ; usb 2.0
+	.db	0x02  							 ; class (vendor specific)
+	.db	0x00							 ; subclass (vendor specific)
+	.db	0x00							 ; protocol (vendor specific)
+	.db	0x40							 ; packet size (ep0)
+	.dw	0xb404							 ; vendor id
+	.dw	0x2086							 ; product id
+	.dw	0x0100							 ; version id
+	.db	0x01							 ; manufacturure str idx
+	.db	0x02							 ; product str idx
+	.db	0x00							 ; serial str idx
+	.db	0x01							 ; n configurations
 dev_dscr_end:
 
 _dev_qual_dscr:
-	.db	dev_qualdscr_end-_dev_qual_dscr
+	.db	dev_qualdscr_end-_dev_qual_dscr	 ; dscr len
 	.db	DSCR_DEVQUAL_TYPE
-	.dw	0x0002                              ; usb 2.0
-	.db	0x2
-	.db	0x00
-	.db	0x0
-	.db	64                                  ; max packet
-	.db	1					; n configs
-	.db	0					; extra reserved byte
+	.dw	0x0002							 ; usb 2.0
+	.db	0x2								 ;
+	.db	0x00							 ;
+	.db	0x0								 ;
+	.db	64								 ; max packet
+	.db	1								 ; n configs
+	.db	0								 ; extra reserved byte
 dev_qualdscr_end:
 
 _debug_dscr:
-	.db	_debug_dscr_end - _debug_dscr
-	.db	10
-	.db	0x86
-	.db	0x02
+	.db	_debug_dscr_end - _debug_dscr	 ; dscr len
+	.db	DSCR_DEBUG_TYPE
+	.db	0x86							 ; debug IN endpoint
+	.db	0x02							 ; debug OUT endpoint
 _debug_dscr_end:
 
 
 _highspd_dscr:
-	.db	highspd_dscr_end-_highspd_dscr      ; dscr len											;; Descriptor length
+	.db	highspd_dscr_end-_highspd_dscr	 ; dscr len
 	.db	DSCR_CONFIG_TYPE
     ; can't use .dw because byte order is different
 	.db	(highspd_dscr_realend-_highspd_dscr) % 256 ; total length of config lsb
 	.db	(highspd_dscr_realend-_highspd_dscr) / 256 ; total length of config msb
-	.db	2								 ; n interfaces
+	.db	1								 ; n interfaces
 	.db	1								 ; config number
 	.db	0								 ; config string
-	.db	0x80                             ; attrs = bus powered, no wakeup
-	.db	0x32                             ; max power = 100ma
+	.db	0x80							 ; attrs = bus powered, no wakeup
+	.db	0x32							 ; max power = 100ma
 highspd_dscr_end:
 
 ; all the interfaces next
-; NOTE the default TRM actually has more alt interfaces
-; but you can add them back in if you need them.
-; here, we just use the default alt setting 1 from the trm
-  	; control endpoints
-	.db	DSCR_INTERFACE_LEN
+; debug device interface
+	.db	DSCR_INTERFACE_LEN	; dscr len
 	.db	DSCR_INTERFACE_TYPE
-	.db	0x00				 ; index
-	.db	0x00				 ; alt setting idx
-	.db	0x01				 ; n endpoints
-	.db	0x02			 	 ; class
-	.db	0x02
-	.db	0x01
-	.db	0x00				; string index
-
-	; CDC header
-	.db	0x05
-	.db	0x24
-	.db	0x00
-	.db	0x10
-	.db	0x01
-
-	; CDC ACM
-	.db	0x04
-	.db	0x24
-	.db	0x02
-	.db	0x00
-
-	; CDC union
-	.db     0x05
-	.db	0x24
-	.db	0x06
-	.db	0x00
-	.db	0x01
-
-	; CDC call managment
-	.db     0x05
-	.db	0x24
-	.db	0x01
-	.db	0x01
-	.db	0x01
-
-; endpoint 1 in
-	.db	DSCR_ENDPOINT_LEN
-	.db	DSCR_ENDPOINT_TYPE
-	.db	0x81				; ep1 dir=IN and address
-	.db	ENDPOINT_TYPE_INT		; type
-	.db	0x40				; max packet LSB
-	.db	0x00				; max packet size=512 bytes
-	.db	0x40				; polling interval
-
-
-	; data endpoints
-	.db	DSCR_INTERFACE_LEN
-	.db	DSCR_INTERFACE_TYPE
-	.db	0x01				; index
+	.db	0x00				; index
 	.db	0x00				; alt setting idx
 	.db	0x02				; n endpoints
 	.db	0x0a				; class
@@ -162,128 +112,49 @@ highspd_dscr_end:
 	.db	0x00				; string index
 
 ; endpoint 2 out
-	.db	DSCR_ENDPOINT_LEN
+	.db	DSCR_ENDPOINT_LEN	; dscr len
 	.db	DSCR_ENDPOINT_TYPE
 	.db	0x02				; ep2 dir=OUT and address
-	.db	ENDPOINT_TYPE_BULK		; type
+	.db	ENDPOINT_TYPE_BULK	; type
 	.db	0x00				; max packet LSB
 	.db	0x02				; max packet size=512 bytes
 	.db	0x00				; polling interval
 
 ; endpoint 6 in
-	.db	DSCR_ENDPOINT_LEN
+	.db	DSCR_ENDPOINT_LEN	; dscr len
 	.db	DSCR_ENDPOINT_TYPE
 	.db	0x86				; ep6 dir=in and address
-	.db	ENDPOINT_TYPE_BULK		; type
+	.db	ENDPOINT_TYPE_BULK	; type
 	.db	0x00				; max packet LSB
 	.db	0x02				; max packet size=512 bytes
 	.db	0x00				; polling interval
 
 highspd_dscr_realend:
 
+; the (empty) full speed descriptor - this is not needed, as the debug device
+; will only be working as high speed device according to EHCI specification
     .even
 _fullspd_dscr:
-	.db	fullspd_dscr_end-_fullspd_dscr      ; dscr len
+	.db	fullspd_dscr_end-_fullspd_dscr	 ; dscr len
 	.db	DSCR_CONFIG_TYPE
     ; can't use .dw because byte order is different
 	.db	(fullspd_dscr_realend-_fullspd_dscr) % 256 ; total length of config lsb
 	.db	(fullspd_dscr_realend-_fullspd_dscr) / 256 ; total length of config msb
-	.db	2								 ; n interfaces
-	.db	1								 ; config number
+	.db	0								 ; n interfaces
+	.db	0								 ; config number
 	.db	0								 ; config string
-	.db	0x80                             ; attrs = bus powered, no wakeup
-	.db	0x32                             ; max power = 100ma
+	.db	0x80							 ; attrs = bus powered, no wakeup
+	.db	0x32							 ; max power = 100ma
 fullspd_dscr_end:
-
-; all the interfaces next
-; NOTE the default TRM actually has more alt interfaces
-; but you can add them back in if you need them.
-; here, we just use the default alt setting 1 from the trm
-	.db	DSCR_INTERFACE_LEN
-	.db	DSCR_INTERFACE_TYPE
-	.db	0				 ; index
-	.db	0				 ; alt setting idx
-	.db	2				 ; n endpoints
-	.db	0x2			 ; class
-	.db	0x2
-	.db	0x1
-	.db	3	             ; string index
-
-	; CDC header
-	.db	0x05
-	.db	0x24
-	.db	0x00
-	.db	0x10
-	.db	0x01
-
-	; CDC ACM
-	.db	0x04
-	.db	0x24
-	.db	0x02
-	.db	0x00
-
-	; CDC union
-	.db     0x05
-	.db	0x24
-	.db	0x06
-	.db	0x00
-	.db	0x01
-
-	; CDC call managment
-	.db     0x05
-	.db	0x24
-	.db	0x01
-	.db	0x01
-	.db	0x01
-
-; endpoint 1 in
-	.db	DSCR_ENDPOINT_LEN
-	.db	DSCR_ENDPOINT_TYPE
-	.db	0x81				; ep1 dir=IN and address
-	.db	ENDPOINT_TYPE_INT		; type
-	.db	0x40				; max packet LSB
-	.db	0x00				; max packet size=512 bytes
-	.db	0x40				; polling interval
-
-
-	; data endpoints
-	.db	DSCR_INTERFACE_LEN
-	.db	DSCR_INTERFACE_TYPE
-	.db	0x01				; index
-	.db	0x00				; alt setting idx
-	.db	0x02				; n endpoints
-	.db	0x0a				; class
-	.db	0x00
-	.db	0x00
-	.db	0x00				; string index
-
-; endpoint 2 out
-	.db	DSCR_ENDPOINT_LEN
-	.db	DSCR_ENDPOINT_TYPE
-	.db	0x02				; ep2 dir=OUT and address
-	.db	ENDPOINT_TYPE_BULK		; type
-	.db	0x40				; max packet LSB
-	.db	0x00				; max packet size=64 bytes
-	.db	0x00				; polling interval
-
-; endpoint 6 in
-	.db	DSCR_ENDPOINT_LEN
-	.db	DSCR_ENDPOINT_TYPE
-	.db	0x86				;  ep6 dir=in and address
-	.db	ENDPOINT_TYPE_BULK		; type
-	.db	0x40				; max packet LSB
-	.db	0x00				; max packet size=64 bytes
-	.db	0x00				; polling interval
-
 fullspd_dscr_realend:
 
 .even
 _dev_strings:
 ; sample string
 _string0:
-	.db	string0end-_string0 ; len
-	.db	DSCR_STRING_TYPE
-    .db 0x09, 0x04     ; who knows
+    .db string0end-_string0 ; len
+    .db DSCR_STRING_TYPE
+    .db 0x09, 0x04     ; language (0x0409) English - United States
 string0end:
 ; add more strings here
 
@@ -354,3 +225,4 @@ string3end:
 
 _dev_strings_end:
     .dw 0x0000   ; just in case someone passes an index higher than the end to the firmware
+
